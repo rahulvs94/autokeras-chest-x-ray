@@ -1,6 +1,6 @@
 # autokeras chest x-ray
 
-- I have added small set of train and test images for reference
+- Here is the link of small set of train and test images for reference: http://tinyurl.com/y5zmwzb7
 
 - Also attached the Autokeras library files, since I have created custom functions in some python classes
 
