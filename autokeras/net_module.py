@@ -110,12 +110,11 @@ class NetworkModule:
         pickle_to_file(self, os.path.join(self.path, 'module'))
 
     def save_best_model(self):
-        graph = self.searcher.load_best_model()
-        file_name = 'final_model_' + timestr + '.graph'
+        model = self.best_model.produce_model()
+        file_name = 'final_model_' + timestr + '.h5'
         file_path = os.path.join(os.getcwd(), 'best_model/', file_name)
         print("Name of final model file: ", file_name)
-        # print("Final model path: ", file_path)
-        pickle.dump(graph, open(file_path, 'wb'))
+        torch.save(model, file_path)
 
     @property
     def best_model(self):
@@ -131,26 +130,6 @@ class NetworkModule:
         model.eval()
 
         return Backend.predict(model, test_loader)
-
-    def custom_model_load_and_predict(self, test_loader):
-        cudnn.benchmark = True
-
-        model = self.custom_model.produce_model()
-        model = torch.nn.DataParallel(model).cuda()
-        model.eval()
-
-        targetDatas = torch.FloatTensor().cuda()
-        outputs = torch.FloatTensor().cuda()
-
-        with torch.no_grad():
-            for index, (input, target) in enumerate(test_loader):
-                target = target.cuda(non_blocking=True)
-                input = input.cuda(non_blocking=True)
-
-                targetDatas = torch.cat((targetDatas, target), 0)
-                outputs = torch.cat((outputs, model(input)), 0)
-
-        return outputs, targetDatas
 
     def custom_predict(self, test_loader):
         cudnn.benchmark = True

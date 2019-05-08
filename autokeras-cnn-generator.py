@@ -5,6 +5,7 @@ import datetime
 import numpy as np
 from autokeras import CnnModule
 from nas.grid import GridSearcher
+import torch.backends.cudnn as cudnn
 from nas.greedy import GreedySearcher
 from torch.utils.data import DataLoader
 from autokeras.nn.metric import Accuracy
@@ -195,12 +196,28 @@ def train(params):
 
 
 def load_model_and_evaluate(params):
-
     _, _, _, _, testLoader = data(params)
-    prediction, targetData = CnnModule.custom_model_load_and_predict(test_loader=testLoader)
+
+    cudnn.benchmark = True
+
+    model = torch.load(
+        '/home/cougarnet.uh.edu/rvsawan3/PycharmProjects/autokeras_chest/best_model/final_model_20190508-15-08-09.h5')
+    model = torch.nn.DataParallel(model).cuda()
+    model.eval()
+
+    targetDatas = torch.FloatTensor().cuda()
+    outputs = torch.FloatTensor().cuda()
+
+    with torch.no_grad():
+        for index, (input, target) in enumerate(testLoader):
+            target = target.cuda(non_blocking = True)
+            input = input.cuda(non_blocking = True)
+
+            targetDatas = torch.cat((targetDatas, target), 0)
+            outputs = torch.cat((outputs, model(input)), 0)
 
     print('\n==> Computing AUC...')
-    aurocIndividual = computeAUROC(targetData, prediction, params['numClasses'])
+    aurocIndividual = computeAUROC(targetDatas, outputs, params['numClasses'])
     aurocMean = np.array(aurocIndividual).mean()
 
     print("AUC ROC for each class: ", aurocIndividual)

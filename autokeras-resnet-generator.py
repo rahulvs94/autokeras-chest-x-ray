@@ -5,6 +5,7 @@ import datetime
 import numpy as np
 from autokeras import CnnModule
 from nas.grid import GridSearcher
+import torch.backends.cudnn as cudnn
 from nas.greedy import GreedySearcher
 from torch.utils.data import DataLoader
 from autokeras.nn.metric import Accuracy
@@ -25,7 +26,7 @@ parameters = {'transResize': 256,
                   'normalize': transforms.Normalize([0.485, 0.456, 0.406],
                                                     [0.229, 0.224, 0.225]),
                   'BCEloss': torch.nn.BCEWithLogitsLoss(reduction='mean'),
-                  'timeLimit': 7 * 24 * 60 * 60
+                  'timeLimit': 1 * 5 * 60
                   }
 
 
@@ -44,11 +45,11 @@ def computeAUROC(target, prediction, classCount):
 def data(params):
     currentDirectory = os.getcwd()
 
-    # pathTrainData = os.path.join(currentDirectory, 'dataset/small_train/')
-    # pathTestData = os.path.join(currentDirectory, 'dataset/small_test/')
-    #
-    # pathLabelsTrain = os.path.join(currentDirectory, 'dataset/small_train_w_labels.txt')
-    # pathLabelsTest = os.path.join(currentDirectory, 'dataset/small_test_w_labels.txt')
+    pathTrainData = os.path.join(currentDirectory, 'dataset/small_train/')
+    pathTestData = os.path.join(currentDirectory, 'dataset/small_test/')
+
+    pathLabelsTrain = os.path.join(currentDirectory, 'dataset/small_train_w_labels.txt')
+    pathLabelsTest = os.path.join(currentDirectory, 'dataset/small_test_w_labels.txt')
 
     # pathTrainData = os.path.join(currentDirectory, 'dataset/train/')
     # pathTestData = os.path.join(currentDirectory, 'dataset/test/')
@@ -56,11 +57,11 @@ def data(params):
     # pathLabelsTrain = os.path.join(currentDirectory, 'dataset/train_w_labels.txt')
     # pathLabelsTest = os.path.join(currentDirectory, 'dataset/test_w_labels.txt')
 
-    pathTrainData = os.path.join(currentDirectory, 'dataset/experiment_train/')
-    pathTestData = os.path.join(currentDirectory, 'dataset/experiment_test/')
-
-    pathLabelsTrain = os.path.join(currentDirectory, 'dataset/experiment_train_w_labels.txt')
-    pathLabelsTest = os.path.join(currentDirectory, 'dataset/experiment_test_w_labels.txt')
+    # pathTrainData = os.path.join(currentDirectory, 'dataset/experiment_train/')
+    # pathTestData = os.path.join(currentDirectory, 'dataset/experiment_test/')
+    #
+    # pathLabelsTrain = os.path.join(currentDirectory, 'dataset/experiment_train_w_labels.txt')
+    # pathLabelsTest = os.path.join(currentDirectory, 'dataset/experiment_test_w_labels.txt')
 
     pp = pprint.PrettyPrinter(indent=2)
     print('\n==> Parameters used...')
@@ -207,10 +208,26 @@ def train(params):
 def load_model_and_evaluate(params):
 
     _, _, _, _, testLoader = data(params)
-    prediction, targetData = CnnModule.custom_model_load_and_predict(test_loader=testLoader)
+
+    cudnn.benchmark = True
+
+    model = torch.load('/home/cougarnet.uh.edu/rvsawan3/PycharmProjects/autokeras_chest/best_model/final_model_20190508-15-08-09.h5')
+    model = torch.nn.DataParallel(model).cuda()
+    model.eval()
+
+    targetDatas = torch.FloatTensor().cuda()
+    outputs = torch.FloatTensor().cuda()
+
+    with torch.no_grad():
+        for index, (input, target) in enumerate(testLoader):
+            target = target.cuda(non_blocking = True)
+            input = input.cuda(non_blocking = True)
+
+            targetDatas = torch.cat((targetDatas, target), 0)
+            outputs = torch.cat((outputs, model(input)), 0)
 
     print('\n==> Computing AUC...')
-    aurocIndividual = computeAUROC(targetData, prediction, params['numClasses'])
+    aurocIndividual = computeAUROC(targetDatas, outputs, params['numClasses'])
     aurocMean = np.array(aurocIndividual).mean()
 
     print("AUC ROC for each class: ", aurocIndividual)
@@ -218,6 +235,6 @@ def load_model_and_evaluate(params):
 
 
 if __name__ == '__main__':
-    train(parameters)
-    # load_model_and_evaluate(parameters)
+    # train(parameters)
+    load_model_and_evaluate(parameters)
 
